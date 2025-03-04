@@ -1,0 +1,67 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:GUI.ViewModels"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
+        x:Class="GUI.Views.MainWindow"
+        x:DataType="vm:MainWindowViewModel"
+        Icon="/Assets/avalonia-logo.ico"
+        Title="GUI">
+
+    <Design.DataContext>
+        <!-- This only sets the DataContext for the previewer in an IDE,
+             to set the actual DataContext for runtime, set the DataContext property in code (look at App.axaml.cs) -->
+        <vm:MainWindowViewModel />
+    </Design.DataContext>
+
+    <Grid>
+        <StackPanel>
+            
+            <Image Source="{Binding ImageSource}"
+                   Width="960" Height="160"
+                   Stretch="UniformToFill" />
+            
+            <TextBlock Text="{Binding FrameRate, StringFormat='FPS: {0:F1}'}"
+                       FontSize="18"
+                       Foreground="White"
+                       HorizontalAlignment="Center" />
+            
+            <StackPanel Orientation="Horizontal" Margin="0,12,0,0" Spacing="12">
+                <TextBlock Text="Display:" VerticalAlignment="Center" />
+                <ComboBox ItemsSource="{Binding DisplayInfos}"
+                          SelectedItem="{Binding SelectedDisplayInfo}"
+                          Width="400" />
+                <TextBlock Text="X:" VerticalAlignment="Center" />
+                <TextBox Text="{Binding CaptureX}" Width="50"/>
+                <TextBlock Text="Y:" VerticalAlignment="Center" />
+                <TextBox Text="{Binding CaptureY}" Width="50"/>
+                <TextBlock Text="Frame rate:" VerticalAlignment="Center" />
+                <TextBox Text="{Binding CaptureFrameRate}" Width="50"/>
+            </StackPanel>
+            
+            <WrapPanel x:Name="ButtonContainer" Margin="0,0,0,12">
+                <Button Content="Check permission"
+                        IsVisible="{Binding !IsCapturePermitted}"
+                        Command="{Binding ExecuteCheckPermission}" />
+                <Button Content="Toggle capturing"
+                        Command="{Binding ExecuteToggleCapture}" />
+                <Button Content="Toggle preview"
+                        Command="{Binding ExecuteTogglePreview}" />
+                <Button Content="Toggle Push connection"
+                        Command="{Binding ExecuteToggleConnection}" />
+                <Button Content="Dump last frame" Command="{Binding ExecuteInspectLastFrame}" />
+                <Button Content="Open frame dump file" Command="{Binding ExecuteOpenLastFrameDump}" />
+            </WrapPanel>
+            
+            <TextBox Text="{Binding DebugOutput}"
+                     FontSize="17"
+                     MinHeight="99"
+                     VerticalAlignment="Top"
+                     Background="Blue"
+                     Foreground="Chartreuse"
+                     IsReadOnly="True"/>
+        </StackPanel>
+    </Grid>
+
+</Window>

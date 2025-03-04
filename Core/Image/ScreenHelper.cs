@@ -9,7 +9,6 @@ public static class ScreenHelper
         public string DisplayName => $"{Id}: {Width}x{Height}, {(IsPrimary ? "Primary" : "Secondary")}";
     }
 
-#if MACCATALYST
     private const string CoreGraphicsLib = "/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics";
 
     // Import CGGetActiveDisplayList
@@ -65,12 +64,4 @@ public static class ScreenHelper
             Marshal.FreeHGlobal(displaysPtr);
         }
     }
-#endif
-
-#if !MACCATALYST
-    public static IEnumerable<DisplayInfo> ListDisplays()
-    {
-        return Enumerable.Empty<DisplayInfo>();
-    }
-#endif
 }
