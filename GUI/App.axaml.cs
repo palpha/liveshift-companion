@@ -41,6 +41,10 @@ public partial class App : Application
             {
                 DataContext = model
             };
+
+            desktop.MainWindow.CanResize = false;
+            desktop.MainWindow.Width = 960;
+            desktop.MainWindow.Height = 400;
         }
 
         base.OnFrameworkInitializationCompleted();

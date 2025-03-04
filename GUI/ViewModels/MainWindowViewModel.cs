@@ -18,7 +18,7 @@ namespace GUI.ViewModels;
 
 public partial class MainWindowViewModel : ViewModelBase
 {
-        [ObservableProperty] private bool isCapturePermitted;
+    [ObservableProperty] private bool isCapturePermitted;
     [ObservableProperty] private bool isCapturing;
     [ObservableProperty] private bool isConnected;
     [ObservableProperty] private bool isPreviewEnabled = true;
@@ -107,7 +107,7 @@ public partial class MainWindowViewModel : ViewModelBase
         if (IsPreviewEnabled)
         {
             var image = ConvertRawBytesToPng(frame);
-            Dispatcher.UIThread.Invoke(()=>ImageSource = image);
+            Dispatcher.UIThread.Invoke(() => ImageSource = image);
         }
     }
 

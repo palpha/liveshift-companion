@@ -25,7 +25,7 @@ public partial class MainPageModel : ObservableObject
     [ObservableProperty] private ObservableCollection<ScreenHelper.DisplayInfo>? displayInfos;
     [ObservableProperty] private ScreenHelper.DisplayInfo? selectedDisplayInfo;
     [ObservableProperty] private string? captureX = "400";
-    [ObservableProperty] private string? captureY = "400";
+    [ObservableProperty] private string? captureY = "1000";
     [ObservableProperty] private string? captureFrameRate = "30";
 
     private Random Rnd { get; } = new();
