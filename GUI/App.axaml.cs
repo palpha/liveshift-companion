@@ -29,7 +29,8 @@ public partial class App : Application
             var provider =
                 new ServiceCollection()
                     .AddLogging()
-                    .AddSingleton<IStreamer, Streamer>()
+                    //.AddSingleton<IStreamer, MacStreamer>()
+                    .AddSingleton<IStreamer, WinStreamer>()
                     .AddTransient<ICaptureEventSource, DefaultCaptureEventSource>()
                     .AddSingleton<IPush2Usb, Push2Usb>()
                     .AddTransient<IImageConverter, ImageConverter>()

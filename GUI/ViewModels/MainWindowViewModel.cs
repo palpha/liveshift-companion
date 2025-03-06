@@ -119,7 +119,7 @@ public partial class MainWindowViewModel : ViewModelBase
             int.TryParse(CaptureFrameRate, out var frameRate) ? frameRate : 0,
             IsPreviewEnabled));
 
-    //TODO: refactor Streamer
+    //TODO: refactor MacStreamer
     //TODO: refactor this bowl of spaghetti
 
     private void OnFrameReceived(ReadOnlySpan<byte> frame)

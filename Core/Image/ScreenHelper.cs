@@ -27,6 +27,7 @@ public static class ScreenHelper
     [DllImport(CoreGraphicsLib)]
     private static extern bool CGDisplayIsMain(uint display);
 
+    #if MACOS
     public static IEnumerable<DisplayInfo> ListDisplays()
     {
         uint displayCount = 0;
@@ -64,4 +65,10 @@ public static class ScreenHelper
             Marshal.FreeHGlobal(displaysPtr);
         }
     }
+    #elif WINDOWS
+    public static IEnumerable<DisplayInfo> ListDisplays()
+    {
+        return [new(0, 100, 100, true)];
+    }
+#endif
 }
