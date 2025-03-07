@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using static Core.Image.DesktopDuplicator;
 
@@ -22,22 +23,26 @@ internal static class D3D11
         D3D_DRIVER_TYPE DriverType,
         IntPtr Software,
         uint Flags,
-        IntPtr pFeatureLevels,   // for simplicity, pass IntPtr.Zero
-        uint FeatureLevels,      // count of levels in pFeatureLevels
+        IntPtr pFeatureLevels, // for simplicity, pass IntPtr.Zero
+        uint FeatureLevels, // count of levels in pFeatureLevels
         uint SDKVersion,
-        out IntPtr ppDevice,     // ID3D11Device**
-        out IntPtr pFeatureLevel,// D3D_FEATURE_LEVEL*
+        out IntPtr ppDevice, // ID3D11Device**
+        out IntPtr pFeatureLevel, // D3D_FEATURE_LEVEL*
         out IntPtr ppImmediateContext // ID3D11DeviceContext**
     );
 
     [DllImport(DXGI_DLL, CallingConvention = CallingConvention.StdCall)]
     public static extern int CreateDXGIFactory(ref Guid riid, out IntPtr ppFactory);
+
+    [DllImport(DXGI_DLL, CallingConvention = CallingConvention.StdCall)]
+    public static extern int CreateDXGIFactory2(uint Flags, ref Guid riid, out IntPtr ppFactory);
 }
 
 internal enum D3D_DRIVER_TYPE
 {
     UNKNOWN = 0,
     HARDWARE = 1,
+
     // ...
     WARP = 5,
 }
@@ -46,50 +51,187 @@ internal enum D3D_DRIVER_TYPE
 // DXGI interfaces
 // ----------------------------------------------------------------
 
+// IDXGIFactory (DXGI 1.0)
 [ComImport]
 [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
 [Guid("7B7166EC-21C7-44AE-B21A-C9AE321AE369")] // IID_IDXGIFactory
 internal interface IDXGIFactory
 {
-    // 0) HRESULT SetPrivateData(...)
     [PreserveSig]
-    int SetPrivateData(
-        ref Guid Name,
-        int DataSize,
-        IntPtr pData
+    int SetPrivateData(ref Guid Name, int DataSize, IntPtr pData);
+
+    [PreserveSig]
+    int SetPrivateDataInterface(ref Guid Name, IntPtr pUnknown);
+
+    [PreserveSig]
+    int GetPrivateData(ref Guid Name, ref int pDataSize, IntPtr pData);
+
+    [PreserveSig]
+    int GetParent(ref Guid riid, out IntPtr ppParent);
+
+    [PreserveSig]
+    int EnumAdapters(uint adapterIndex, out IntPtr ppAdapter);
+
+    [PreserveSig]
+    int MakeWindowAssociation(IntPtr WindowHandle, uint Flags);
+
+    [PreserveSig]
+    int GetWindowAssociation(out IntPtr pWindowHandle);
+
+    [PreserveSig]
+    int CreateSwapChain(IntPtr pDevice, IntPtr pDesc, out IntPtr ppSwapChain);
+
+    [PreserveSig]
+    int CreateSoftwareAdapter(IntPtr Module, out IntPtr ppAdapter);
+}
+
+// IDXGIFactory1 (DXGI 1.1)
+[ComImport]
+[InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+[Guid("770aae78-f26f-4dba-a829-253c83d1b387")] // IID_IDXGIFactory1
+internal interface IDXGIFactory1 : IDXGIFactory
+{
+    [PreserveSig]
+    int EnumAdapters1(uint Adapter, out IntPtr ppAdapter);
+
+    [PreserveSig]
+    bool IsCurrent();
+}
+
+// IDXGIFactory2 (DXGI 1.2)
+[ComImport]
+[InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+[Guid("50c83a1c-e072-4c48-87b0-3630fa36a6d0")] // IID_IDXGIFactory2
+internal interface IDXGIFactory2 : IDXGIFactory1
+{
+    [PreserveSig]
+    bool IsWindowedStereoEnabled();
+
+    [PreserveSig]
+    int CreateSwapChainForHwnd(
+        IntPtr pDevice,  // IUnknown*
+        IntPtr hWnd,     // HWND (use IntPtr)
+        IntPtr pDesc,    // DXGI_SWAP_CHAIN_DESC1*
+        IntPtr pFullscreenDesc,  // DXGI_SWAP_CHAIN_FULLSCREEN_DESC*
+        IntPtr pRestrictToOutput, // IDXGIOutput*
+        out IntPtr ppSwapChain // IDXGISwapChain1**
     );
 
-    // 1) HRESULT SetPrivateDataInterface(...)
     [PreserveSig]
-    int SetPrivateDataInterface(
-        ref Guid Name,
-        IntPtr pUnknown // IUnknown*
+    int CreateSwapChainForCoreWindow(
+        IntPtr pDevice, // IUnknown*
+        IntPtr pWindow, // IUnknown*
+        IntPtr pDesc, // DXGI_SWAP_CHAIN_DESC1*
+        IntPtr pRestrictToOutput, // IDXGIOutput*
+        out IntPtr ppSwapChain // IDXGISwapChain1**
     );
 
-    // 2) HRESULT GetPrivateData(...)
     [PreserveSig]
-    int GetPrivateData(
-        ref Guid Name,
-        ref int pDataSize,
-        IntPtr pData
+    int GetSharedResourceAdapterLuid(
+        IntPtr hResource, // HANDLE
+        out LUID pLuid
     );
 
-    // 3) HRESULT GetParent(...)
     [PreserveSig]
-    int GetParent(
+    int RegisterStereoStatusWindow(
+        IntPtr windowHandle, // HWND
+        uint msg, // UINT
+        out uint cookie // DWORD*
+    );
+
+    [PreserveSig]
+    int RegisterStereoStatusEvent(
+        IntPtr hEvent, // HANDLE
+        out uint cookie // DWORD*
+    );
+
+    [PreserveSig]
+    void UnregisterStereoStatus(uint cookie);
+
+    [PreserveSig]
+    int RegisterOcclusionStatusWindow(
+        IntPtr windowHandle, // HWND
+        uint msg, // UINT
+        out uint cookie // DWORD*
+    );
+
+    [PreserveSig]
+    int RegisterOcclusionStatusEvent(
+        IntPtr hEvent, // HANDLE
+        out uint cookie // DWORD*
+    );
+
+    [PreserveSig]
+    void UnregisterOcclusionStatus(uint cookie);
+
+    [PreserveSig]
+    int CreateSwapChainForComposition(
+        IntPtr pDevice, // IUnknown*
+        IntPtr pDesc, // DXGI_SWAP_CHAIN_DESC1*
+        IntPtr pRestrictToOutput, // IDXGIOutput*
+        out IntPtr ppSwapChain // IDXGISwapChain1**
+    );
+}
+
+// IDXGIFactory3 (DXGI 1.3)
+[ComImport]
+[InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+[Guid("25483823-cd46-4c7d-86ca-47aa95b837bd")] // IID_IDXGIFactory3
+internal interface IDXGIFactory3 : IDXGIFactory2
+{
+    [PreserveSig]
+    uint GetCreationFlags();
+}
+
+// IDXGIFactory4 (DXGI 1.4)
+[ComImport]
+[InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+[Guid("1bc6ea02-ef36-464f-bf0c-21ca39e5168a")] // IID_IDXGIFactory4
+internal interface IDXGIFactory4 : IDXGIFactory3
+{
+    [PreserveSig]
+    int EnumAdapterByLuid(ref LUID AdapterLuid, ref Guid riid, out IntPtr ppvAdapter);
+
+    [PreserveSig]
+    int EnumWarpAdapter(ref Guid riid, out IntPtr ppvAdapter);
+}
+
+// IDXGIFactory5 (DXGI 1.6)
+[ComImport]
+[InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+[Guid("7632e1f5-ee65-4dca-87fd-84cd75f8838d")] // IID_IDXGIFactory5
+internal interface IDXGIFactory5 : IDXGIFactory4
+{
+    [PreserveSig]
+    int CheckFeatureSupport(int Feature, IntPtr pFeatureSupportData, uint FeatureSupportDataSize);
+}
+
+// IDXGIFactory6 (DXGI 1.7)
+[ComImport]
+[InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+[Guid("c1b6694f-ff09-44a9-b03c-77900a0a1d17")] // IID_IDXGIFactory6
+internal interface IDXGIFactory6 : IDXGIFactory5
+{
+    [PreserveSig]
+    int EnumAdapterByGpuPreference(
+        uint Adapter,
+        uint GpuPreference, // DXGI_GPU_PREFERENCE enum
         ref Guid riid,
-        out IntPtr ppParent
+        out IntPtr ppvAdapter
     );
+}
 
-    // 4) HRESULT EnumAdapters(UINT Adapter, IDXGIAdapter** ppAdapter);
+// IDXGIFactory7 (DXGI 1.8)
+[ComImport]
+[InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+[Guid("a4966eed-76db-44da-84c0-3bfc3a7a3e62")] // IID_IDXGIFactory7
+internal interface IDXGIFactory7 : IDXGIFactory6
+{
     [PreserveSig]
-    int EnumAdapters(
-        uint adapterIndex,
-        out IntPtr ppAdapter
-    );
+    int RegisterAdaptersChangedEvent(IntPtr hEvent, out uint pdwCookie);
 
-    // For completeness, you might add the rest (MakeWindowAssociation, etc.)
-    // but at least this ensures vtable alignment up to EnumAdapters.
+    [PreserveSig]
+    int UnregisterAdaptersChangedEvent(uint dwCookie);
 }
 
 // The full IDXGIObject has 4 methods (slots #0..#3).
@@ -143,7 +285,7 @@ internal interface IDXGIOutput
     //       UINT *pNumModes, DXGI_MODE_DESC *pDesc);
     [PreserveSig]
     int GetDisplayModeList(
-        int enumFormat,   // treat DXGI_FORMAT as int or define your own enum
+        int enumFormat, // treat DXGI_FORMAT as int or define your own enum
         uint flags,
         ref int pNumModes,
         IntPtr pDesc // or DXGI_MODE_DESC*
@@ -230,8 +372,8 @@ internal interface IDXGIOutput1 : IDXGIOutput
     // 19) HRESULT DuplicateOutput( [in] IUnknown *pDevice, [out] IDXGIOutputDuplication **ppOutputDuplication );
     [PreserveSig]
     int DuplicateOutput(
-        IntPtr pDevice,                         // ID3D11Device*
-        out IntPtr ppOutputDuplication          // IDXGIOutputDuplication**
+        IntPtr pDevice, // ID3D11Device*
+        out IntPtr ppOutputDuplication // IDXGIOutputDuplication**
     );
 }
 
@@ -285,10 +427,8 @@ internal struct DXGI_OUTDUPL_FRAME_INFO
     public long LastPresentTime;
     public long LastMouseUpdateTime;
     public uint AccumulatedFrames;
-    [MarshalAs(UnmanagedType.Bool)]
-    public bool RectsCoalesced;
-    [MarshalAs(UnmanagedType.Bool)]
-    public bool ProtectedContentMaskedOut;
+    [MarshalAs(UnmanagedType.Bool)] public bool RectsCoalesced;
+    [MarshalAs(UnmanagedType.Bool)] public bool ProtectedContentMaskedOut;
     public DXGI_OUTDUPL_POINTER_POSITION PointerPosition;
     public uint TotalMetadataBufferSize;
     public uint PointerShapeBufferSize;
@@ -299,8 +439,7 @@ internal struct DXGI_OUTDUPL_FRAME_INFO
 internal struct DXGI_OUTDUPL_POINTER_POSITION
 {
     public POINT Position;
-    [MarshalAs(UnmanagedType.Bool)]
-    public bool Visible;
+    [MarshalAs(UnmanagedType.Bool)] public bool Visible;
 }
 
 [StructLayout(LayoutKind.Sequential)]
@@ -341,7 +480,7 @@ internal struct D3D11_TEXTURE2D_DESC
     public uint ArraySize;
     public int Format; // DXGI_FORMAT, treat as int or define your own enum
     public DXGI_SAMPLE_DESC SampleDesc;
-    public int Usage;  // D3D11_USAGE, treat as int or define your own enum
+    public int Usage; // D3D11_USAGE, treat as int or define your own enum
     public uint BindFlags;
     public uint CPUAccessFlags;
     public uint MiscFlags;
@@ -388,13 +527,14 @@ internal struct DXGI_ADAPTER_DESC
 {
     [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 128)]
     public string Description;
+
     public uint VendorId;
     public uint DeviceId;
     public uint SubSysId;
     public uint Revision;
-    public IntPtr DedicatedVideoMemory;   // SIZE_T
-    public IntPtr DedicatedSystemMemory;  // SIZE_T
-    public IntPtr SharedSystemMemory;     // SIZE_T
+    public IntPtr DedicatedVideoMemory; // SIZE_T
+    public IntPtr DedicatedSystemMemory; // SIZE_T
+    public IntPtr SharedSystemMemory; // SIZE_T
     public LUID AdapterLuid;
 }
 
@@ -410,9 +550,9 @@ internal struct DXGI_OUTPUT_DESC
 {
     [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)]
     public string DeviceName;
+
     public RECT DesktopCoordinates;
-    [MarshalAs(UnmanagedType.Bool)]
-    public bool AttachedToDesktop;
+    [MarshalAs(UnmanagedType.Bool)] public bool AttachedToDesktop;
     public DXGI_MODE_ROTATION Rotation;
     public IntPtr Monitor;
 }
@@ -513,19 +653,37 @@ internal interface ID3D11DeviceContext
 
 public class DesktopDuplicator
 {
-    private IntPtr device = IntPtr.Zero;         // ID3D11Device*
-    private IntPtr deviceContext = IntPtr.Zero;  // ID3D11DeviceContext*
+    private IntPtr device = IntPtr.Zero; // ID3D11Device*
+    private IntPtr deviceContext = IntPtr.Zero; // ID3D11DeviceContext*
     private IntPtr outputDuplication = IntPtr.Zero; // IDXGIOutputDuplication*
 
     private readonly int _x, _y, _width, _height;
     // keep the rest of your fields, device pointers, etc.
 
-    public DesktopDuplicator(int x, int y, int width, int height)
+    private Action<string> _log;
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern IntPtr GetModuleHandle(string lpModuleName);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern IntPtr GetProcAddress(IntPtr hModule, string procName);
+
+    public DesktopDuplicator(int x, int y, int width, int height, Action<string> log)
     {
         _x = x;
         _y = y;
         _width = width;
         _height = height;
+        _log = log;
+
+        //IntPtr dxgiModule = GetModuleHandle("dxgi.dll");
+        //IntPtr procAddress = GetProcAddress(dxgiModule, "EnumAdapterByGpuPreference");
+
+        //if (procAddress == IntPtr.Zero)
+        //{
+        //    throw new Exception("EnumAdapterByGpuPreference is not available in dxgi.dll");
+        //}
+
         Initialize();
     }
 
@@ -533,11 +691,11 @@ public class DesktopDuplicator
     {
         // 1) Create the Direct3D 11 device + device context
         int hr = D3D11.D3D11CreateDevice(
-            IntPtr.Zero,                // use default adapter
-            D3D_DRIVER_TYPE.HARDWARE,   // or WARP, etc.
+            IntPtr.Zero, // use default adapter
+            D3D_DRIVER_TYPE.HARDWARE, // or WARP, etc.
             IntPtr.Zero,
             0,
-            IntPtr.Zero,                // no specific feature levels
+            IntPtr.Zero, // no specific feature levels
             0,
             7, // D3D11_SDK_VERSION == 7
             out device,
@@ -547,19 +705,110 @@ public class DesktopDuplicator
         if (hr != 0)
             throw new Exception("D3D11CreateDevice failed: " + hr);
 
-        // 2) Create a DXGI Factory
-        Guid factoryGuid = typeof(IDXGIFactory).GUID; // or new Guid("7B7166EC-21C7-44AE-B21A-C9AE321AE369")
-        hr = D3D11.CreateDXGIFactory(ref factoryGuid, out IntPtr dxgiFactoryPtr);
-        if (hr != 0)
-            throw new Exception("CreateDXGIFactory failed: " + hr);
+        // Attempt to create the highest available factory version
+        // Attempt to create the highest available factory version
+        IntPtr dxgiFactoryPtr = IntPtr.Zero;
+        (int, Guid)[] factoryGuids =
+        [
+            (7, typeof(IDXGIFactory7).GUID),
+            (6, typeof(IDXGIFactory6).GUID),
+            (5, typeof(IDXGIFactory5).GUID),
+            (4, typeof(IDXGIFactory4).GUID),
+            (1, typeof(IDXGIFactory1).GUID)
+        ];
 
-        // 3) Get IDXGIFactory from the pointer
+        // Try to create DXGIFactory using the newest available version
+        int highestSupportedFactory = 0;
+        for (int i = 0; i < factoryGuids.Length; i++)
+        {
+            hr = D3D11.CreateDXGIFactory2(0, ref factoryGuids[i].Item2, out dxgiFactoryPtr);
+            if (hr == 0)
+            {
+                highestSupportedFactory = factoryGuids[i].Item1;
+                _log($"Successfully created factory version: IDXGIFactory{highestSupportedFactory}");
+                break;
+            }
+        }
+
+        // If CreateDXGIFactory2 completely fails, fallback to CreateDXGIFactory (DXGI 1.0)
+        if (hr != 0)
+        {
+            hr = D3D11.CreateDXGIFactory(ref factoryGuids[^1].Item2, out dxgiFactoryPtr);
+            if (hr != 0)
+                throw new Exception($"Failed to create any DXGI factory: HRESULT = 0x{hr:X}");
+        }
+
+        if (dxgiFactoryPtr == IntPtr.Zero)
+            throw new Exception("CreateDXGIFactory returned NULL pointer.");
+
+        // Use the highest available version
+        _log($"Using IDXGIFactory{highestSupportedFactory}.");
         IDXGIFactory factory = (IDXGIFactory)Marshal.GetObjectForIUnknown(dxgiFactoryPtr);
 
+        IntPtr adapterPtr;
         // 4) Enumerate the first adapter from the factory
-        hr = factory.EnumAdapters(0, out IntPtr adapterPtr); // get first adapter
+        if (false && highestSupportedFactory >= 6)
+        {
+            Guid factory6Guid = typeof(IDXGIFactory6).GUID;
+            hr = Marshal.QueryInterface(dxgiFactoryPtr, ref factory6Guid, out IntPtr factory6Ptr);
+
+            IDXGIFactory6 factory6;
+            if (hr == 0 && factory6Ptr != IntPtr.Zero)
+            {
+                _log("Successfully queried IDXGIFactory6.");
+                factory6 = (IDXGIFactory6)Marshal.GetObjectForIUnknown(factory6Ptr);
+            }
+            else
+            {
+                _log("Failed to query IDXGIFactory6, HRESULT = " + hr.ToString("X"));
+                throw new Exception("Failed to query IDXGIFactory6.");
+            }
+
+            Guid adapterGuid = typeof(IDXGIAdapter).GUID;
+            hr = factory6.EnumAdapterByGpuPreference(
+                0U, // First adapter
+                0U, // DXGI_GPU_PREFERENCE_UNSPECIFIED (or HIGH_PERFORMANCE for gaming GPUs)
+                ref adapterGuid,
+                out adapterPtr
+            );
+        }
+        else if (highestSupportedFactory >= 1)
+        {
+            Guid factory1Guid = typeof(IDXGIFactory1).GUID;
+            hr = Marshal.QueryInterface(dxgiFactoryPtr, ref factory1Guid, out IntPtr factory1Ptr);
+
+            IDXGIFactory1 factory1;
+            if (hr == 0 && factory1Ptr != IntPtr.Zero)
+            {
+                _log("Successfully queried IDXGIFactory1.");
+                factory1 = (IDXGIFactory1)Marshal.GetObjectForIUnknown(factory1Ptr);
+            }
+            else
+            {
+                _log("Failed to query IDXGIFactory1, HRESULT = " + hr.ToString("X"));
+                throw new Exception("Failed to query IDXGIFactory1.");
+            }
+
+            _log($"Using IDXGIFactory1 - falling back to EnumAdapters1. (Highest supported: {highestSupportedFactory})");
+
+            _log($"Using IDXGIFactory1 - calling EnumAdapters1. (Highest supported: {highestSupportedFactory})");
+
+            if (factory1 == null)
+                throw new Exception("IDXGIFactory1 reference is NULL before EnumAdapters1.");
+
+            if (dxgiFactoryPtr == IntPtr.Zero)
+                throw new Exception("dxgiFactoryPtr is NULL before calling EnumAdapters1.");
+
+            hr = factory1.EnumAdapters1(0, out adapterPtr);
+        }
+        else
+        {
+            _log("Using IDXGIFactory - falling back to EnumAdapters.");
+            hr = factory.EnumAdapters(0, out adapterPtr);
+        }
+
         if (hr != 0 || adapterPtr == IntPtr.Zero)
-            throw new Exception("EnumAdapters failed or no adapter found: " + hr);
+            throw new Exception("No IDXGIAdapter found for adapter: " + hr);
 
         // 5) Get the first output (e.g., the primary monitor)
         IDXGIAdapter adapter = (IDXGIAdapter)Marshal.GetObjectForIUnknown(adapterPtr);
@@ -770,6 +1019,9 @@ public class WinStreamer : IStreamer, IDisposable
     private DesktopDuplicator? _duplicator;
     private CancellationTokenSource? _cts;
 
+    public event ExceptionHandler? OnException = delegate { };
+    public event Action<string> OnLog = delegate { };
+
     public WinStreamer(ICaptureEventSource eventSource)
     {
         _eventSource = eventSource;
@@ -798,7 +1050,7 @@ public class WinStreamer : IStreamer, IDisposable
         if (IsCapturing) return;
 
         // Instantiate DesktopDuplicator
-        _duplicator = new DesktopDuplicator(x, y, width, height);
+        _duplicator = new DesktopDuplicator(x, y, width, height, OnLog);
 
         // Create a token source for the capture loop
         _cts = new CancellationTokenSource();
@@ -820,15 +1072,20 @@ public class WinStreamer : IStreamer, IDisposable
                 break;
 
             // Grab a frame
-            byte[]? frameBytes = _duplicator.CaptureFrame();
-            if (frameBytes != null)
+            try
             {
-                // TODO: Do something with the captured data
-                // e.g., pass it to your event source or a callback
-                // _eventSource?.OnFrameCaptured(frameBytes);
+                var frameBytes = _duplicator.CaptureFrame();
+                if (frameBytes == null)
+                {
+                    await Task.Delay(1000, token).ConfigureAwait(false);
+                    continue;
+                }
 
-                // Or, if you have some delegate/event on WinStreamer itself, raise it
-                // OnFrameCaptured?.Invoke(this, frameBytes);
+                _eventSource?.InvokeFrameCaptured(frameBytes);
+            }
+            catch (Exception ex)
+            {
+                OnException?.Invoke(ex);
             }
 
             // Respect the requested frame rate

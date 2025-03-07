@@ -8,8 +8,11 @@ public interface ICaptureEventSource
     void InvokeFrameCaptured(ReadOnlySpan<byte> frameBytes);
 }
 
+public delegate void ExceptionHandler(Exception exception);
+
 public interface IStreamer
 {
+    event ExceptionHandler OnException;
     ICaptureEventSource EventSource { get; }
     Task<bool> CheckPermissionAsync();
     bool IsCapturing { get; }

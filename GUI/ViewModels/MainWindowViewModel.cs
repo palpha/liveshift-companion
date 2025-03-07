@@ -63,6 +63,12 @@ public partial class MainWindowViewModel : ViewModelBase
         Logger = logger;
 
         Streamer.EventSource.FrameCaptured += OnFrameReceived;
+        ((WinStreamer)Streamer).OnLog += log => DebugOutput += $"{log}\n";
+        Streamer.OnException += exception =>
+        {
+            DebugOutput += $"Exception: {exception.Message}\n{exception.StackTrace}\n";
+        };
+
         LastFrameTime = DateTime.UtcNow;
 
         PropertyChanged += (_, e) =>
@@ -189,7 +195,16 @@ public partial class MainWindowViewModel : ViewModelBase
             var capX = int.Parse(CaptureX ?? "400");
             var capY = int.Parse(CaptureY ?? "1000");
             var capFrameRate = int.Parse(CaptureFrameRate ?? "30");
-            Streamer.Start(SelectedDisplayInfo.Id, capX, capY, 960, 160, capFrameRate);
+
+            try
+            {
+                Streamer.Start(SelectedDisplayInfo.Id, capX, capY, 960, 160, capFrameRate);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "Unable to start capture");
+                DebugOutput += $"Unable to start capture: {ex.Message}\n{ex.StackTrace}\n";
+            }
         }
 
         IsCapturing = Streamer.IsCapturing;
