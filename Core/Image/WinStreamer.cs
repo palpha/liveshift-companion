@@ -51,11 +51,26 @@ internal enum D3D_DRIVER_TYPE
 // DXGI interfaces
 // ----------------------------------------------------------------
 
-// IDXGIFactory (DXGI 1.0)
+
 [ComImport]
 [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-[Guid("7B7166EC-21C7-44AE-B21A-C9AE321AE369")] // IID_IDXGIFactory
-internal interface IDXGIFactory
+[Guid("00000000-0000-0000-C000-000000000046")] // IID_IUnknown
+internal interface IUnknown
+{
+    [PreserveSig]
+    int QueryInterface(ref Guid riid, out IntPtr ppvObject);
+
+    [PreserveSig]
+    int AddRef();
+
+    [PreserveSig]
+    int Release();
+}
+
+[ComImport]
+[InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+[Guid("aec22fb8-76f3-4639-9be0-28eb43a67a2e")] // IID_IDXGIObject
+internal interface IDXGIObject : IUnknown
 {
     [PreserveSig]
     int SetPrivateData(ref Guid Name, int DataSize, IntPtr pData);
@@ -68,7 +83,14 @@ internal interface IDXGIFactory
 
     [PreserveSig]
     int GetParent(ref Guid riid, out IntPtr ppParent);
+}
 
+// IDXGIFactory (DXGI 1.0)
+[ComImport]
+[InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+[Guid("7B7166EC-21C7-44AE-B21A-C9AE321AE369")] // IID_IDXGIFactory
+internal interface IDXGIFactory : IDXGIObject
+{
     [PreserveSig]
     int EnumAdapters(uint adapterIndex, out IntPtr ppAdapter);
 
@@ -95,7 +117,7 @@ internal interface IDXGIFactory1 : IDXGIFactory
     int EnumAdapters1(uint Adapter, out IntPtr ppAdapter);
 
     [PreserveSig]
-    bool IsCurrent();
+    int IsCurrent();
 }
 
 // IDXGIFactory2 (DXGI 1.2)
@@ -109,10 +131,10 @@ internal interface IDXGIFactory2 : IDXGIFactory1
 
     [PreserveSig]
     int CreateSwapChainForHwnd(
-        IntPtr pDevice,  // IUnknown*
-        IntPtr hWnd,     // HWND (use IntPtr)
-        IntPtr pDesc,    // DXGI_SWAP_CHAIN_DESC1*
-        IntPtr pFullscreenDesc,  // DXGI_SWAP_CHAIN_FULLSCREEN_DESC*
+        IntPtr pDevice, // IUnknown*
+        IntPtr hWnd, // HWND (use IntPtr)
+        IntPtr pDesc, // DXGI_SWAP_CHAIN_DESC1*
+        IntPtr pFullscreenDesc, // DXGI_SWAP_CHAIN_FULLSCREEN_DESC*
         IntPtr pRestrictToOutput, // IDXGIOutput*
         out IntPtr ppSwapChain // IDXGISwapChain1**
     );
@@ -745,6 +767,13 @@ public class DesktopDuplicator
         _log($"Using IDXGIFactory{highestSupportedFactory}.");
         IDXGIFactory factory = (IDXGIFactory)Marshal.GetObjectForIUnknown(dxgiFactoryPtr);
 
+        IntPtr vtable = Marshal.ReadIntPtr(dxgiFactoryPtr);
+        _log($"IDXGIFactory vtable starts at: 0x{vtable.ToInt64():X}");
+        for (var zz = 0; zz < 20; zz++)
+        {
+            _log($"Vtable entry {zz + 1}: 0x{Marshal.ReadIntPtr(vtable + zz * IntPtr.Size).ToInt64():X}");
+        }
+
         IntPtr adapterPtr;
         // 4) Enumerate the first adapter from the factory
         if (false && highestSupportedFactory >= 6)
@@ -789,15 +818,7 @@ public class DesktopDuplicator
                 throw new Exception("Failed to query IDXGIFactory1.");
             }
 
-            _log($"Using IDXGIFactory1 - falling back to EnumAdapters1. (Highest supported: {highestSupportedFactory})");
-
             _log($"Using IDXGIFactory1 - calling EnumAdapters1. (Highest supported: {highestSupportedFactory})");
-
-            if (factory1 == null)
-                throw new Exception("IDXGIFactory1 reference is NULL before EnumAdapters1.");
-
-            if (dxgiFactoryPtr == IntPtr.Zero)
-                throw new Exception("dxgiFactoryPtr is NULL before calling EnumAdapters1.");
 
             hr = factory1.EnumAdapters1(0, out adapterPtr);
         }
