@@ -5,6 +5,7 @@ using static Core.Image.DesktopDuplicator;
 namespace Core.Image;
 
 using System;
+using System.Net;
 using System.Runtime.InteropServices;
 using System.Security;
 
@@ -50,7 +51,6 @@ internal enum D3D_DRIVER_TYPE
 // ----------------------------------------------------------------
 // DXGI interfaces
 // ----------------------------------------------------------------
-
 
 [ComImport]
 [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
@@ -706,7 +706,40 @@ public class DesktopDuplicator
         //    throw new Exception("EnumAdapterByGpuPreference is not available in dxgi.dll");
         //}
 
-        Initialize();
+        Test();
+
+        //Initialize();
+    }
+
+    private void Test()
+    {
+        // 1) Create the Direct3D 11 device + device context
+        int hr = D3D11.D3D11CreateDevice(
+            IntPtr.Zero, // use default adapter
+            D3D_DRIVER_TYPE.HARDWARE, // or WARP, etc.
+            IntPtr.Zero,
+            0,
+            IntPtr.Zero, // no specific feature levels
+            0,
+            7, // D3D11_SDK_VERSION == 7
+            out device,
+            out _,
+            out deviceContext
+        );
+        if (hr != 0)
+            throw new Exception("D3D11CreateDevice failed: " + hr);
+
+        Guid factoryGuid = typeof(IDXGIFactory).GUID;
+        hr = D3D11.CreateDXGIFactory(ref factoryGuid, out IntPtr factoryPtr);
+        _log($"CreateDXGIFactory: 0x{hr:X}, ptr: 0x{factoryPtr.ToInt64():X}");
+
+        if (hr != 0 || factoryPtr == IntPtr.Zero)
+            return;
+
+        IDXGIFactory factory = (IDXGIFactory)Marshal.GetObjectForIUnknown(factoryPtr);
+        _log("Calling EnumAdapters...");
+        hr = factory.EnumAdapters(0, out IntPtr adapterPtr);
+        _log($"EnumAdapters => 0x{hr:X}, adapter: 0x{adapterPtr.ToInt64():X}");
     }
 
     private void Initialize()
@@ -765,85 +798,68 @@ public class DesktopDuplicator
 
         // Use the highest available version
         _log($"Using IDXGIFactory{highestSupportedFactory}.");
-        IDXGIFactory factory = (IDXGIFactory)Marshal.GetObjectForIUnknown(dxgiFactoryPtr);
+
+        Guid factory1Guid = typeof(IDXGIFactory1).GUID;
+        hr = Marshal.QueryInterface(dxgiFactoryPtr, ref factory1Guid, out IntPtr factory1Ptr);
+        if (hr != 0 || factory1Ptr == IntPtr.Zero)
+            throw new Exception("QueryInterface failed: " + hr);
+
 
         IntPtr vtable = Marshal.ReadIntPtr(dxgiFactoryPtr);
         _log($"IDXGIFactory vtable starts at: 0x{vtable.ToInt64():X}");
+
+        List<string> logs = [];
+        var oldLog = _log;
+        var newLog = (Action<string>)(x =>
+        {
+            logs.Add(x);
+            oldLog(x);
+        });
+        _log = newLog;
+
         for (var zz = 0; zz < 30; zz++)
         {
             IntPtr address = Marshal.ReadIntPtr(vtable + zz * IntPtr.Size);
             _log($"ln 0x{address.ToInt64():X} $$ {zz}");
         }
 
-        IntPtr adapterPtr;
-        // 4) Enumerate the first adapter from the factory
-        if (highestSupportedFactory >= 6)
+        var factory = (IDXGIFactory)Marshal.GetObjectForIUnknown(factory1Ptr);
+
+        uint adapterIndex = 0;
+        var outputPtr = IntPtr.Zero;
+        hr = factory.EnumAdapters(adapterIndex, out IntPtr adapterPtr);
+        if (hr == 0 && adapterPtr != IntPtr.Zero)
         {
-            Guid factory6Guid = typeof(IDXGIFactory6).GUID;
-            hr = Marshal.QueryInterface(dxgiFactoryPtr, ref factory6Guid, out IntPtr factory6Ptr);
+            var adapter = (IDXGIAdapter)Marshal.GetObjectForIUnknown(adapterPtr);
 
-            IDXGIFactory6 factory6;
-            if (hr == 0 && factory6Ptr != IntPtr.Zero)
+            // Now enumerate outputs (displays) for each adapter
+            for (uint outputIndex = 0;; outputIndex++)
             {
-                _log("Successfully queried IDXGIFactory6.");
-                factory6 = (IDXGIFactory6)Marshal.GetObjectForIUnknown(factory6Ptr);
-            }
-            else
-            {
-                _log("Failed to query IDXGIFactory6, HRESULT = " + hr.ToString("X"));
-                throw new Exception("Failed to query IDXGIFactory6.");
-            }
+                hr = adapter.EnumOutputs(outputIndex, out outputPtr);
+                if (hr != 0 || outputPtr == IntPtr.Zero)
+                {
+                    // No more outputs on this adapter
+                    break;
+                }
 
-            Guid adapterGuid = typeof(IDXGIAdapter).GUID;
-            hr = factory6.EnumAdapterByGpuPreference(
-                0U, // First adapter
-                0U, // DXGI_GPU_PREFERENCE_UNSPECIFIED (or HIGH_PERFORMANCE for gaming GPUs)
-                ref adapterGuid,
-                out adapterPtr
-            );
-        }
-        else if (highestSupportedFactory >= 1)
-        {
-            Guid factory1Guid = typeof(IDXGIFactory1).GUID;
-            hr = Marshal.QueryInterface(dxgiFactoryPtr, ref factory1Guid, out IntPtr factory1Ptr);
+                var output = (IDXGIOutput)Marshal.GetObjectForIUnknown(outputPtr);
 
-            IDXGIFactory1 factory1;
-            if (hr == 0 && factory1Ptr != IntPtr.Zero)
-            {
-                _log("Successfully queried IDXGIFactory1.");
-                factory1 = (IDXGIFactory1)Marshal.GetObjectForIUnknown(factory1Ptr);
-            }
-            else
-            {
-                _log("Failed to query IDXGIFactory1, HRESULT = " + hr.ToString("X"));
-                throw new Exception("Failed to query IDXGIFactory1.");
+                // Call GetDesc to see details
+                hr = output.GetDesc(out DXGI_OUTPUT_DESC desc);
+                if (hr == 0 && desc.AttachedToDesktop)
+                {
+                    // This is an active display
+                    _log($"Found display: {desc.DeviceName}");
+                }
+
+                Marshal.ReleaseComObject(output);
             }
 
-            _log($"Using IDXGIFactory1 - calling EnumAdapters1. (Highest supported: {highestSupportedFactory})");
-
-            hr = factory1.EnumAdapters1(0, out adapterPtr);
-        }
-        else
-        {
-            _log("Using IDXGIFactory - falling back to EnumAdapters.");
-            hr = factory.EnumAdapters(0, out adapterPtr);
+            Marshal.ReleaseComObject(adapter);
         }
 
         if (hr != 0 || adapterPtr == IntPtr.Zero)
             throw new Exception("No IDXGIAdapter found for adapter: " + hr);
-
-        // 5) Get the first output (e.g., the primary monitor)
-        IDXGIAdapter adapter = (IDXGIAdapter)Marshal.GetObjectForIUnknown(adapterPtr);
-
-        // We don�t have an explicit interface for IDXGIAdapter in this snippet,
-        // so we can do the older approach: adapter->EnumOutputs(0, &output).
-        // For brevity, let's do a direct QueryInterface from the factory
-        // if you want the *first output.*
-        // In a real app, you�d do adapter->EnumOutputs. For clarity, show a direct approach:
-        Guid outputGuid = typeof(IDXGIOutput).GUID;
-        hr = adapter.EnumOutputs(0, out IntPtr outputPtr);
-        if (hr != 0 || outputPtr == IntPtr.Zero)
-            throw new Exception("No IDXGIOutput found for adapter: " + hr);
 
         // 6) Query for IDXGIOutput1
         IDXGIOutput1 output1 = (IDXGIOutput1)Marshal.GetObjectForIUnknown(outputPtr);
