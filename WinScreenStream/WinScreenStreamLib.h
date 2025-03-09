@@ -10,35 +10,23 @@
 extern "C" {
 #endif
 
-    // Simple descriptor for a display/monitor
+    // Matches your existing struct
     typedef struct DisplayInfo {
-        int id;      // identifier used by our library
+        int id;
         char name[128];
         int width;
         int height;
         bool isPrimary;
     } DisplayInfo;
 
-    // Callback signature for receiving frames (ARGB or RGBA)
-    typedef void (*CaptureFrameCallback)(
-        const unsigned char* pixels,
-        int width,
-        int height,
-        void* userContext
-        );
+    // Same callback signature
+    typedef void (*CaptureFrameCallback)(const unsigned char* pixels, int width,
+        int height, void* userContext);
 
-    // Returns the number of active displays. Fills 'infos' up to maxCount.
     WINSCREENSTREAMLIB_API int GetActiveDisplays(DisplayInfo* infos, int maxCount);
-
-    // Start capture on the display 'displayId'; returns 0 on success.
-    WINSCREENSTREAMLIB_API int StartCapture(
-        int displayId,
-        CaptureFrameCallback callback,
-        void* userContext
-    );
-
-    // Stop capture. If capturing is active, it stops the thread and releases resources.
+    WINSCREENSTREAMLIB_API int StartCapture(int displayId, CaptureFrameCallback callback, void* userContext);
     WINSCREENSTREAMLIB_API void StopCapture();
+    WINSCREENSTREAMLIB_API void Cleanup();
 
 #ifdef __cplusplus
 }

@@ -15,6 +15,10 @@ public static class WinScreenStreamLib
     [DllImport(LibraryName, CharSet = CharSet.Ansi)]
     internal static extern void StopCapture();
 
+    // Cleanup
+    [DllImport(LibraryName, CharSet = CharSet.Ansi)]
+    internal static extern void Cleanup();
+
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi)]
     public struct DisplayInfo
     {
@@ -25,6 +29,8 @@ public static class WinScreenStreamLib
 
         public int width;
         public int height;
+
+        [MarshalAs(UnmanagedType.U1)]
         public bool isPrimary;
     }
 

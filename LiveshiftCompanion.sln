@@ -6,10 +6,16 @@ MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Tests.App", "Tests.App\Tests.App.csproj", "{6CD2DD16-BEF7-4EF4-A882-7952BF19B7AC}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Core", "Core\Core.csproj", "{128A1D8D-A55A-48AB-8FF0-8761609B6010}"
+	ProjectSection(ProjectDependencies) = postProject
+		{9946534D-9667-4FED-971C-C7828A8DA917} = {9946534D-9667-4FED-971C-C7828A8DA917}
+	EndProjectSection
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Tests.Benchmark", "Tests.Benchmark\Tests.Benchmark.csproj", "{564A6847-0BCB-47AE-9C59-3FAC19683DD6}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GUI", "GUI\GUI.csproj", "{782FB44E-DBF0-42D1-8160-AAC6CED8FE4B}"
+	ProjectSection(ProjectDependencies) = postProject
+		{9946534D-9667-4FED-971C-C7828A8DA917} = {9946534D-9667-4FED-971C-C7828A8DA917}
+	EndProjectSection
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ConsoleApplication1", "ConsoleApplication1\ConsoleApplication1.vcxproj", "{6E6BD2F7-EB07-4742-8297-64E11BCEC65F}"
 EndProject

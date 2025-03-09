@@ -54,6 +54,9 @@ public partial class App : Application
                 }
 
                 e.Cancel = true;
+
+                //provider.GetRequiredService<IStreamer>().Stop();
+
                 if (desktop.MainWindow.DataContext is MainWindowViewModel vm)
                 {
                     saved = true;

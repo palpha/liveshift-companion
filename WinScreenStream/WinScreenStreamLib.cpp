@@ -1,4 +1,4 @@
-#include "pch.h"
+#include "pch.h" // or disable precompiled headers if you prefer
 #include "WinScreenStreamLib.h"
 #include <windows.h>
 #include <dxgi1_2.h>
@@ -23,21 +23,17 @@ struct DisplayContext {
 // Global or static storage for enumerated displays
 static std::vector<DisplayContext> gDisplays;
 
+// We store duplication interface so we can properly release it in StopCapture()
+static ComPtr<IDXGIOutputDuplication> gDuplication;
+static ComPtr<ID3D11Device> gD3DDevice;
+static ComPtr<ID3D11DeviceContext> gD3DContext;
+
 // Thread control
 static std::thread gCaptureThread;
 static std::atomic<bool> gCaptureRun{ false };
 static int gCurrentDisplayId = -1;
 static CaptureFrameCallback gCallback = nullptr;
 static void* gCallbackUserContext = nullptr;
-
-// Helper for releasing COM
-template<typename T>
-void SafeRelease(T*& ptr) {
-    if (ptr) {
-        ptr->Release();
-        ptr = nullptr;
-    }
-}
 
 // ------------------------------------------------------
 // GetActiveDisplays
@@ -69,7 +65,13 @@ int GetActiveDisplays(DisplayInfo* infos, int maxCount)
                 ctx.output = output;
                 ctx.width = desc.DesktopCoordinates.right - desc.DesktopCoordinates.left;
                 ctx.height = desc.DesktopCoordinates.bottom - desc.DesktopCoordinates.top;
-                WideCharToMultiByte(CP_ACP, 0, desc.DeviceName, -1, ctx.name, 128, NULL, NULL);
+
+                WideCharToMultiByte(
+                    CP_ACP, 0,
+                    desc.DeviceName, -1,
+                    ctx.name, 128,
+                    NULL, NULL
+                );
                 ctx.name[127] = 0; // Ensure null termination
 
                 // Identify primary display
@@ -106,119 +108,76 @@ int GetActiveDisplays(DisplayInfo* infos, int maxCount)
 // ------------------------------------------------------
 static void CaptureThread(int displayId)
 {
-    // Grab display info
     if (displayId < 0 || displayId >= (int)gDisplays.size()) {
         printf("Invalid displayId: %d\n", displayId);
         return;
     }
+
     DisplayContext& ctx = gDisplays[displayId];
+    printf("Capture thread started for display #%d\n", displayId);
 
-    // Create D3D11 device
-    ComPtr<ID3D11Device> d3dDevice;
-    ComPtr<ID3D11DeviceContext> d3dContext;
-    HRESULT hr = D3D11CreateDevice(
-        nullptr,
-        D3D_DRIVER_TYPE_HARDWARE,
-        nullptr,
-        0, // flags
-        nullptr, 0, // feature levels
-        D3D11_SDK_VERSION,
-        &d3dDevice,
-        nullptr,
-        &d3dContext
-    );
-    if (FAILED(hr)) {
-        printf("D3D11CreateDevice failed: 0x%08X\n", hr);
-        return;
-    }
+    // We already created gD3DDevice in StartCapture. Also gDuplication is set up there.
+    // We'll just use them. No need to re-create a device here.
 
-    // Query for IDXGIDevice
-    ComPtr<IDXGIDevice> dxgiDevice;
-    hr = d3dDevice.As(&dxgiDevice);
-    if (FAILED(hr)) {
-        printf("As IDXGIDevice failed: 0x%08X\n", hr);
-        return;
-    }
-
-    // Get the output to duplicate
-    ComPtr<IDXGIOutput1> output1;
-    hr = ctx.output.As(&output1);
-    if (FAILED(hr)) {
-        printf("As IDXGIOutput1 failed: 0x%08X\n", hr);
-        return;
-    }
-
-    // Desktop Duplication interface
-    ComPtr<IDXGIOutputDuplication> duplication;
-    hr = output1->DuplicateOutput(d3dDevice.Get(), &duplication);
-    if (FAILED(hr)) {
-        printf("DuplicateOutput failed: 0x%08X\n", hr);
-        return;
-    }
-
-    // Frame variables
+    // Acquire frames until gCaptureRun is false
     DXGI_OUTDUPL_FRAME_INFO frameInfo = {};
     ComPtr<IDXGIResource> desktopResource;
     ComPtr<ID3D11Texture2D> acquiredTex;
 
-    printf("Capture thread started for display #%d\n", displayId);
-
     while (gCaptureRun) {
-        // Acquire next frame (blocking or with a short wait)
         desktopResource.Reset();
         acquiredTex.Reset();
 
-        hr = duplication->AcquireNextFrame(100, // 100ms timeout
-            &frameInfo, &desktopResource);
+        // AcquireNextFrame with 100ms timeout
+        HRESULT hr = gDuplication->AcquireNextFrame(
+            100,
+            &frameInfo,
+            &desktopResource
+        );
+
         if (hr == DXGI_ERROR_WAIT_TIMEOUT) {
-            // no new frame - keep going
+            // no new frame
             continue;
         }
         else if (FAILED(hr)) {
-            // Lost access or other errors
+            // e.g. device lost or other error
             printf("AcquireNextFrame failed: 0x%08X\n", hr);
             break;
         }
 
-        // Query for ID3D11Texture2D
+        // Convert resource to texture
         hr = desktopResource.As(&acquiredTex);
         if (SUCCEEDED(hr)) {
-            // Map/copy the texture to CPU memory
             D3D11_TEXTURE2D_DESC desc;
             acquiredTex->GetDesc(&desc);
 
-            // Create a staging texture
+            // Create staging texture
             desc.Usage = D3D11_USAGE_STAGING;
             desc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
             desc.BindFlags = 0;
             desc.MiscFlags = 0;
 
             ComPtr<ID3D11Texture2D> stagingTex;
-            hr = d3dDevice->CreateTexture2D(&desc, nullptr, &stagingTex);
+            hr = gD3DDevice->CreateTexture2D(&desc, nullptr, &stagingTex);
             if (SUCCEEDED(hr)) {
-                // Copy frame
-                d3dContext->CopyResource(stagingTex.Get(), acquiredTex.Get());
+                gD3DContext->CopyResource(stagingTex.Get(), acquiredTex.Get());
 
-                // Map and read
                 D3D11_MAPPED_SUBRESOURCE map;
-                hr = d3dContext->Map(stagingTex.Get(), 0, D3D11_MAP_READ, 0, &map);
+                hr = gD3DContext->Map(stagingTex.Get(), 0, D3D11_MAP_READ, 0, &map);
                 if (SUCCEEDED(hr)) {
-                    // Pixel pointer
                     auto* pixels = reinterpret_cast<unsigned char*>(map.pData);
-                    int pitch = map.RowPitch; // in bytes
+                    // int pitch = map.RowPitch; // you can pass pitch to your callback if needed
 
                     // Call user callback
                     if (gCallback) {
                         gCallback(pixels, ctx.width, ctx.height, gCallbackUserContext);
                     }
-
-                    d3dContext->Unmap(stagingTex.Get(), 0);
+                    gD3DContext->Unmap(stagingTex.Get(), 0);
                 }
             }
         }
 
-        // Release frame
-        duplication->ReleaseFrame();
+        gDuplication->ReleaseFrame();
     }
 
     printf("Capture thread ending for display #%d\n", displayId);
@@ -239,10 +198,43 @@ int StartCapture(int displayId, CaptureFrameCallback callback, void* userContext
         return 0;
     }
 
-    gCaptureRun = true;
     gCurrentDisplayId = displayId;
     gCallback = callback;
     gCallbackUserContext = userContext;
+
+    // 1. Create D3D11 device (only once)
+    HRESULT hr = D3D11CreateDevice(
+        nullptr,                 // adapter
+        D3D_DRIVER_TYPE_HARDWARE,
+        nullptr,                 // software raster
+        0,                       // flags
+        nullptr, 0,             // feature levels
+        D3D11_SDK_VERSION,
+        &gD3DDevice,
+        nullptr,                 // feature level
+        &gD3DContext
+    );
+    if (FAILED(hr)) {
+        printf("D3D11CreateDevice failed: 0x%08X\n", hr);
+        return -2;
+    }
+
+    // 2. Duplicate output for the chosen display
+    ComPtr<IDXGIOutput1> output1;
+    hr = gDisplays[displayId].output.As(&output1);
+    if (FAILED(hr)) {
+        printf("As IDXGIOutput1 failed: 0x%08X\n", hr);
+        return -3;
+    }
+
+    hr = output1->DuplicateOutput(gD3DDevice.Get(), &gDuplication);
+    if (FAILED(hr)) {
+        printf("DuplicateOutput failed: 0x%08X\n", hr);
+        return -4;
+    }
+
+    // Now we can run the thread
+    gCaptureRun = true;
     gCaptureThread = std::thread(CaptureThread, displayId);
 
     return 0; // success
@@ -253,13 +245,37 @@ int StartCapture(int displayId, CaptureFrameCallback callback, void* userContext
 // ------------------------------------------------------
 void StopCapture()
 {
-    if (!gCaptureRun) return;
+    if (!gCaptureRun) {
+        return; // not capturing
+    }
 
+    printf("Stopping capture...\n");
+
+    // Signal thread to stop
     gCaptureRun = false;
+
+    // Wait for capture thread
     if (gCaptureThread.joinable()) {
         gCaptureThread.join();
     }
+
+    printf("Capture stopped.\n");
+
+    // Cleanup global state
+    gDuplication.Reset(); // release duplication interface
+    gD3DContext.Reset();
+    gD3DDevice.Reset();
+
     gCurrentDisplayId = -1;
     gCallback = nullptr;
     gCallbackUserContext = nullptr;
+}
+
+// ------------------------------------------------------
+// Cleanup
+// ------------------------------------------------------
+void Cleanup()
+{
+    StopCapture();
+    gDisplays.clear();
 }

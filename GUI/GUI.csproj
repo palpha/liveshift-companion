@@ -53,7 +53,7 @@
     </ItemGroup>
 
     <ItemGroup Condition=" '$(IsWindows)' == 'true' and '$(Platform)' == 'x64' ">
-        <None Include="../lib/WinScreenStream_x64.dll">
+        <None Include="../x64/Release/WinScreenStream.dll">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
             <TargetPath>WinScreenStream.dll</TargetPath>
         </None>
@@ -64,7 +64,7 @@
     </ItemGroup>
 
     <ItemGroup Condition=" '$(IsWindows)' == 'true' and '$(Platform)' == 'arm64' ">
-        <None Include="../lib/WinScreenStream_arm64.dll">
+        <None Include="../ARM64/Release/WinScreenStream.dll">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
             <TargetPath>WinScreenStream.dll</TargetPath>
         </None>
