@@ -53,6 +53,10 @@
     </ItemGroup>
 
     <ItemGroup Condition=" '$(IsWindows)' == 'true' and '$(Platform)' == 'x64' ">
+        <None Include="../lib/WinScreenStream_x64.dll">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+            <TargetPath>WinScreenStream.dll</TargetPath>
+        </None>
         <None Include="../lib/libusb-1.0_x64.dll">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
             <TargetPath>libusb.dll</TargetPath>
@@ -60,6 +64,10 @@
     </ItemGroup>
 
     <ItemGroup Condition=" '$(IsWindows)' == 'true' and '$(Platform)' == 'arm64' ">
+        <None Include="../lib/WinScreenStream_arm64.dll">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+            <TargetPath>WinScreenStream.dll</TargetPath>
+        </None>
         <None Include="../lib/libusb-1.0_arm64.dll">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
             <TargetPath>libusb.dll</TargetPath>

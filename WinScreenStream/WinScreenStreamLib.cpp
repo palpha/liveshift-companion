@@ -17,6 +17,7 @@ struct DisplayContext {
     int width;
     int height;
     char name[128];
+    bool isPrimary;
 };
 
 // Global or static storage for enumerated displays
@@ -45,41 +46,34 @@ int GetActiveDisplays(DisplayInfo* infos, int maxCount)
 {
     gDisplays.clear();
 
-    // Create a DXGI factory
     ComPtr<IDXGIFactory1> factory;
     if (FAILED(CreateDXGIFactory1(__uuidof(IDXGIFactory1), (void**)&factory))) {
         printf("Failed to create DXGI factory\n");
         return 0;
     }
 
-    // Enumerate all adapters and outputs
     UINT adapterIndex = 0;
     ComPtr<IDXGIAdapter1> adapter;
     int displayCount = 0;
 
     while (factory->EnumAdapters1(adapterIndex, &adapter) != DXGI_ERROR_NOT_FOUND) {
-        // For each adapter, enumerate outputs (monitors)
         UINT outputIndex = 0;
         ComPtr<IDXGIOutput> output;
         while (adapter->EnumOutputs(outputIndex, &output) != DXGI_ERROR_NOT_FOUND) {
             DXGI_OUTPUT_DESC desc;
             output->GetDesc(&desc);
 
-            // Only care about outputs "attached to desktop"
             if (desc.AttachedToDesktop) {
                 DisplayContext ctx;
                 ctx.id = displayCount;
-                ctx.output = output; // store
-                ctx.width = (desc.DesktopCoordinates.right - desc.DesktopCoordinates.left);
-                ctx.height = (desc.DesktopCoordinates.bottom - desc.DesktopCoordinates.top);
-                // Copy name
-                WideCharToMultiByte(
-                    CP_ACP, 0,
-                    desc.DeviceName, -1,
-                    ctx.name, 128,
-                    NULL, NULL
-                );
-                ctx.name[127] = 0; // ensure null-terminated
+                ctx.output = output;
+                ctx.width = desc.DesktopCoordinates.right - desc.DesktopCoordinates.left;
+                ctx.height = desc.DesktopCoordinates.bottom - desc.DesktopCoordinates.top;
+                WideCharToMultiByte(CP_ACP, 0, desc.DeviceName, -1, ctx.name, 128, NULL, NULL);
+                ctx.name[127] = 0; // Ensure null termination
+
+                // Identify primary display
+                ctx.isPrimary = (desc.DesktopCoordinates.left == 0 && desc.DesktopCoordinates.top == 0);
 
                 gDisplays.push_back(ctx);
 
@@ -88,7 +82,13 @@ int GetActiveDisplays(DisplayInfo* infos, int maxCount)
                     strcpy_s(infos[displayCount].name, ctx.name);
                     infos[displayCount].width = ctx.width;
                     infos[displayCount].height = ctx.height;
+                    infos[displayCount].isPrimary = ctx.isPrimary;
                 }
+
+                printf("Display %d: %s (%dx%d) %s\n",
+                    displayCount, ctx.name, ctx.width, ctx.height,
+                    ctx.isPrimary ? "[PRIMARY]" : "");
+
                 displayCount++;
             }
             output.Reset();

@@ -13,8 +13,6 @@ public class MacStreamer(ICaptureEventSource eventSource) : IStreamer, IDisposab
 
     public ICaptureEventSource EventSource { get; } = eventSource;
 
-    public event ExceptionHandler? OnException = delegate { };
-
     public async Task<bool> CheckPermissionAsync()
     {
         LibScreenStream.CheckCapturePermission();

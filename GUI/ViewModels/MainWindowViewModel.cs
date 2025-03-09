@@ -63,11 +63,6 @@ public partial class MainWindowViewModel : ViewModelBase
         Logger = logger;
 
         Streamer.EventSource.FrameCaptured += OnFrameReceived;
-        ((WinStreamer)Streamer).OnLog += log => DebugOutput += $"{log}\n";
-        Streamer.OnException += exception =>
-        {
-            DebugOutput += $"Exception: {exception.Message}\n{exception.StackTrace}\n";
-        };
 
         LastFrameTime = DateTime.UtcNow;
 

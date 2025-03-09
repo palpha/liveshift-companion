@@ -16,6 +16,7 @@ extern "C" {
         char name[128];
         int width;
         int height;
+        bool isPrimary;
     } DisplayInfo;
 
     // Callback signature for receiving frames (ARGB or RGBA)
