@@ -769,14 +769,15 @@ public class DesktopDuplicator
 
         IntPtr vtable = Marshal.ReadIntPtr(dxgiFactoryPtr);
         _log($"IDXGIFactory vtable starts at: 0x{vtable.ToInt64():X}");
-        for (var zz = 0; zz < 20; zz++)
+        for (var zz = 0; zz < 30; zz++)
         {
-            _log($"Vtable entry {zz + 1}: 0x{Marshal.ReadIntPtr(vtable + zz * IntPtr.Size).ToInt64():X}");
+            IntPtr address = Marshal.ReadIntPtr(vtable + zz * IntPtr.Size);
+            _log($"ln 0x{address.ToInt64():X} $$ {zz}");
         }
 
         IntPtr adapterPtr;
         // 4) Enumerate the first adapter from the factory
-        if (false && highestSupportedFactory >= 6)
+        if (highestSupportedFactory >= 6)
         {
             Guid factory6Guid = typeof(IDXGIFactory6).GUID;
             hr = Marshal.QueryInterface(dxgiFactoryPtr, ref factory6Guid, out IntPtr factory6Ptr);
