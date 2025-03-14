@@ -72,8 +72,18 @@ public partial class MainWindowViewModel : ViewModelBase
         Logger = logger;
 
         CaptureService.FrameCaptured += OnFrameReceived;
+        (CaptureService as CaptureServiceBase).PatternFound += (x, y) =>
+        {
+            CaptureX = x.ToString();
+            CaptureY = y.ToString();
+        };
 
         LastFrameTime = DateTime.UtcNow;
+
+        // generate a test bitmap and save to a png
+        // var bytes = GenerateTestBitmap();
+        // var testBitmap = ConvertToData(bytes);
+        // SavePngToDisk(testBitmap);
 
         PropertyChanged += (_, e) =>
         {
@@ -99,70 +109,70 @@ public partial class MainWindowViewModel : ViewModelBase
             switch (e.PropertyName)
             {
                 case nameof(SelectedDisplayInfo):
-                {
-                    if (SelectedDisplayInfo == null)
                     {
-                        return;
+                        if (SelectedDisplayInfo == null)
+                        {
+                            return;
+                        }
+
+                        UpdateCaptureConfiguration(CaptureConfiguration with
+                        {
+                            DisplayId = SelectedDisplayInfo!.Id
+                        });
+
+                        break;
                     }
-
-                    UpdateCaptureConfiguration(CaptureConfiguration with
-                    {
-                        DisplayId = SelectedDisplayInfo!.Id
-                    });
-
-                    break;
-                }
                 case nameof(CaptureX):
-                {
-                    if (CaptureX == CaptureConfiguration.CaptureX.ToString())
                     {
-                        return;
-                    }
-
-                    if (int.TryParse(CaptureX, out var x))
-                    {
-                        UpdateCaptureConfiguration(CaptureConfiguration with
+                        if (CaptureX == CaptureConfiguration.CaptureX.ToString())
                         {
-                            CaptureX = x
-                        });
-                    }
+                            return;
+                        }
 
-                    break;
-                }
+                        if (int.TryParse(CaptureX, out var x))
+                        {
+                            UpdateCaptureConfiguration(CaptureConfiguration with
+                            {
+                                CaptureX = x
+                            });
+                        }
+
+                        break;
+                    }
                 case nameof(CaptureY):
-                {
-                    if (CaptureY == CaptureConfiguration.CaptureY.ToString())
                     {
-                        return;
-                    }
-
-                    if (int.TryParse(CaptureY, out var x))
-                    {
-                        UpdateCaptureConfiguration(CaptureConfiguration with
+                        if (CaptureY == CaptureConfiguration.CaptureY.ToString())
                         {
-                            CaptureY = x
-                        });
-                    }
+                            return;
+                        }
 
-                    break;
-                }
+                        if (int.TryParse(CaptureY, out var x))
+                        {
+                            UpdateCaptureConfiguration(CaptureConfiguration with
+                            {
+                                CaptureY = x
+                            });
+                        }
+
+                        break;
+                    }
                 case nameof(CaptureFrameRate):
-                {
-                    if (CaptureFrameRate == CaptureConfiguration.FrameRate.ToString())
                     {
-                        return;
-                    }
-
-                    if (int.TryParse(CaptureFrameRate, out var x))
-                    {
-                        UpdateCaptureConfiguration(CaptureConfiguration with
+                        if (CaptureFrameRate == CaptureConfiguration.FrameRate.ToString())
                         {
-                            FrameRate = x
-                        });
-                    }
+                            return;
+                        }
 
-                    break;
-                }
+                        if (int.TryParse(CaptureFrameRate, out var x))
+                        {
+                            UpdateCaptureConfiguration(CaptureConfiguration with
+                            {
+                                FrameRate = x
+                            });
+                        }
+
+                        break;
+                    }
             }
         };
 
@@ -223,20 +233,30 @@ public partial class MainWindowViewModel : ViewModelBase
 
     private Bitmap ConvertRawBytesToPng(ReadOnlySpan<byte> frame)
     {
-        var bitmap = ImageConverter.ConvertBgra24BytesToBitmap(frame, SKColorType.Bgra8888);
-        using var skImage = SKImage.FromBitmap(bitmap);
-        var data = skImage.Encode(SKEncodedImageFormat.Png, 100);
+        var data = ConvertToData(frame);
 
         if (Logger.IsEnabled(LogLevel.Trace) && Rnd.Next(0, 1000) == 0)
         {
-            var timestamp = DateTime.UtcNow.ToString("HHmmss_fff");
-            var tempDir = Path.GetTempPath();
-            var tempPath = Path.Combine(tempDir, $"{timestamp}.png");
-            Logger.LogInformation("Saving frame to disk: {Filename}", tempPath);
-            File.WriteAllBytes(tempPath, data.ToArray());
+            SavePngToDisk(data);
         }
 
         return Bitmap.DecodeToWidth(data.AsStream(), 960);
+    }
+
+    private SKData ConvertToData(ReadOnlySpan<byte> frame)
+    {
+        var bitmap = ImageConverter.ConvertBgra24BytesToBitmap(frame, SKColorType.Bgra8888);
+        using var skImage = SKImage.FromBitmap(bitmap);
+        return skImage.Encode(SKEncodedImageFormat.Png, 100);
+    }
+
+    private void SavePngToDisk(SKData data)
+    {
+        var tmpDir = Path.GetTempPath();
+        var tmpFilename = Path.Combine(tmpDir, $"frame_{DateTime.Now:yyyyMMdd_HHmmss}.png");
+        using var fs = new FileStream(tmpFilename, FileMode.Create);
+        data.SaveTo(fs);
+        DebugOutput += $"Frame saved: {tmpFilename}\n";
     }
 
     public async Task ExecuteCheckPermission(bool? delay = null)
@@ -401,5 +421,70 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             Process.Start("open", $"-R \"{LastFrameDumpFilename}\"");
         }
+    }
+
+    public void ExecuteLocatePixels()
+    {
+        Task.Run(()=> (CaptureService as CaptureServiceBase).LocatePatternInFullScreen());
+    }
+
+    public static byte[] GenerateTestBitmap()
+    {
+        const int Width = 960;
+        const int Height = 161;
+        const string Pattern = "abaabbbaaaabbbbb"; // 15 characters
+        var data = new byte[Width * Height * 4];
+
+        // Fill row 0
+        for (var x = 0; x < Width; x++)
+        {
+            // Calculate the starting offset for pixel RGBA
+            var offset = (0 * Width + x) * 4;
+
+            // If x is within our 15-character pattern
+            if (x < Pattern.Length)
+            {
+                var c = Pattern[x];
+                if (c == 'a')
+                {
+                    // #1C1C1C, fully opaque
+                    data[offset + 0] = 0x1C; // R
+                    data[offset + 1] = 0x1C; // G
+                    data[offset + 2] = 0x1C; // B
+                    data[offset + 3] = 0xFF; // A
+                }
+                else // 'b'
+                {
+                    // #2C2C2C, fully opaque
+                    data[offset + 0] = 0x2C;
+                    data[offset + 1] = 0x2C;
+                    data[offset + 2] = 0x2C;
+                    data[offset + 3] = 0xFF;
+                }
+            }
+            else
+            {
+                // Remaining pixels in row 0 => black #000000
+                data[offset + 0] = 0x00; // R
+                data[offset + 1] = 0x00; // G
+                data[offset + 2] = 0x00; // B
+                data[offset + 3] = 0xFF; // A
+            }
+        }
+
+        // Fill rows 1..160 with green #00FF00
+        for (var y = 1; y < Height; y++)
+        {
+            for (var x = 0; x < Width; x++)
+            {
+                var offset = (y * Width + x) * 4;
+                data[offset + 0] = 0x00; // R
+                data[offset + 1] = 0xFF; // G
+                data[offset + 2] = 0x00; // B
+                data[offset + 3] = 0xFF; // A
+            }
+        }
+
+        return data;
     }
 }
