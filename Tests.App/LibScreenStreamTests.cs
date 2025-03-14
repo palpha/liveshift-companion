@@ -17,9 +17,8 @@ public class LibScreenStreamTests(ITestOutputHelper testOutputHelper)
 
         void Callback(IntPtr displayInfos, int count)
         {
-            // get NSArray of DisplayInfo from pointer
             var structSize = Marshal.SizeOf<LibScreenStream.DisplayInfo>();
-            for (int i = 0; i < count; i++)
+            for (var i = 0; i < count; i++)
             {
                 var current = IntPtr.Add(displayInfos, i * structSize);
                 var display = Marshal.PtrToStructure<LibScreenStream.DisplayInfo>(current);

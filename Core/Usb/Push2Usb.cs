@@ -107,12 +107,12 @@ public class Push2Usb : IPush2Usb
             return false;
         }
 
-        Streamer.EventSource.FrameCaptured += OnFrameReceived;
+        Streamer.EventSource.RegionFrameCaptured += OnRegionFrameReceived;
 
         return IsConnected = true;
     }
 
-    private void OnFrameReceived(ReadOnlySpan<byte> bgraBytes)
+    private void OnRegionFrameReceived(ReadOnlySpan<byte> bgraBytes)
     {
         LastFrameTime = DateTime.UtcNow;
         SendFrame(bgraBytes);
@@ -136,7 +136,7 @@ public class Push2Usb : IPush2Usb
     {
         ObjectDisposedException.ThrowIf(IsDisposed, this);
 
-        Streamer.EventSource.FrameCaptured -= OnFrameReceived;
+        Streamer.EventSource.RegionFrameCaptured -= OnRegionFrameReceived;
 
         if (IsConnected == false || Identity is null)
         {

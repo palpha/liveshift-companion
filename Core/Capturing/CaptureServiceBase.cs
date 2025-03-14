@@ -44,7 +44,7 @@ public abstract class CaptureServiceBase(
             return;
         }
 
-        Streamer.EventSource.FrameCaptured += OnFrameReceived;
+        Streamer.EventSource.RegionFrameCaptured += OnRegionFrameReceived;
         StartStreamer();
     }
 
@@ -55,7 +55,7 @@ public abstract class CaptureServiceBase(
             return;
         }
 
-        Streamer.EventSource.FrameCaptured -= OnFrameReceived;
+        Streamer.EventSource.RegionFrameCaptured -= OnRegionFrameReceived;
 
         Streamer.Stop();
     }
@@ -84,7 +84,7 @@ public abstract class CaptureServiceBase(
         }
     }
 
-    private void OnFrameReceived(ReadOnlySpan<byte> frame) =>
+    private void OnRegionFrameReceived(ReadOnlySpan<byte> frame) =>
         FrameCaptured?.Invoke(frame);
 
     protected abstract void UpdateStreamerConfiguration(CaptureConfiguration previousConfiguration);

@@ -257,8 +257,8 @@ public class Push2UsbTests
             .Verifiable(Times.AtLeastOnce);
 
         Sut.Connect();
-        EventSourceMock.InvokeFrameCaptured(new(bgraBytes));
-        
+        EventSourceMock.InvokeFrameCaptured(FrameCaptureType.Region, new(bgraBytes));
+
         await Task.Delay(1000);
 
         headerBytes.ShouldBe([
