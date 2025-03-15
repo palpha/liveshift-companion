@@ -79,98 +79,87 @@ public partial class MainWindowViewModel : ViewModelBase
         CaptureService.FrameCaptured += OnFrameReceived;
         DebugWriter.DebugWritten += WriteDebug;
         PtnshiftFinder.LocationLost += () => WriteDebug("Lost location");
-        PtnshiftFinder.LocationFound += x => WriteDebug($"Found location: {x}");
+        PtnshiftFinder.LocationFound += x =>
+        {
+            WriteDebug($"Found location: {x}");
+            UpdateCaptureConfiguration(CaptureConfiguration with
+            {
+                CaptureX = x.X,
+                CaptureY = x.Y
+            }, 0);
+        };
 
         LastFrameTime = DateTime.UtcNow;
 
         PropertyChanged += (_, e) =>
         {
-            void UpdateCaptureConfiguration(CaptureConfiguration configuration)
-            {
-                CaptureConfiguration = configuration.GetNormalized(DisplayService.AvailableDisplays);
-
-                DelayOperation(
-                    () => Dispatcher.UIThread.Invoke(() =>
-                    {
-                        CaptureX = CaptureConfiguration.CaptureX.ToString();
-                        CaptureY = CaptureConfiguration.CaptureY.ToString();
-                        CaptureFrameRate = CaptureConfiguration.FrameRate.ToString();
-                    }),
-                    100, ref propertyUpdateCancellationTokenSource);
-
-                DelayOperation(
-                    () => CaptureService.SetConfiguration(CaptureConfiguration),
-                    500, ref cfgUpdateCancellationTokenSource);
-            }
-
-
             switch (e.PropertyName)
             {
                 case nameof(SelectedDisplayInfo):
+                {
+                    if (SelectedDisplayInfo == null)
                     {
-                        if (SelectedDisplayInfo == null)
-                        {
-                            return;
-                        }
+                        return;
+                    }
 
+                    UpdateCaptureConfiguration(CaptureConfiguration with
+                    {
+                        DisplayId = SelectedDisplayInfo!.Id
+                    });
+
+                    break;
+                }
+                case nameof(CaptureX):
+                {
+                    if (CaptureX == CaptureConfiguration.CaptureX.ToString())
+                    {
+                        return;
+                    }
+
+                    if (int.TryParse(CaptureX, out var x))
+                    {
                         UpdateCaptureConfiguration(CaptureConfiguration with
                         {
-                            DisplayId = SelectedDisplayInfo!.Id
+                            CaptureX = x
                         });
-
-                        break;
                     }
-                case nameof(CaptureX):
-                    {
-                        if (CaptureX == CaptureConfiguration.CaptureX.ToString())
-                        {
-                            return;
-                        }
 
-                        if (int.TryParse(CaptureX, out var x))
-                        {
-                            UpdateCaptureConfiguration(CaptureConfiguration with
-                            {
-                                CaptureX = x
-                            });
-                        }
-
-                        break;
-                    }
+                    break;
+                }
                 case nameof(CaptureY):
+                {
+                    if (CaptureY == CaptureConfiguration.CaptureY.ToString())
                     {
-                        if (CaptureY == CaptureConfiguration.CaptureY.ToString())
-                        {
-                            return;
-                        }
-
-                        if (int.TryParse(CaptureY, out var x))
-                        {
-                            UpdateCaptureConfiguration(CaptureConfiguration with
-                            {
-                                CaptureY = x
-                            });
-                        }
-
-                        break;
+                        return;
                     }
+
+                    if (int.TryParse(CaptureY, out var x))
+                    {
+                        UpdateCaptureConfiguration(CaptureConfiguration with
+                        {
+                            CaptureY = x
+                        });
+                    }
+
+                    break;
+                }
                 case nameof(CaptureFrameRate):
+                {
+                    if (CaptureFrameRate == CaptureConfiguration.FrameRate.ToString())
                     {
-                        if (CaptureFrameRate == CaptureConfiguration.FrameRate.ToString())
-                        {
-                            return;
-                        }
-
-                        if (int.TryParse(CaptureFrameRate, out var x))
-                        {
-                            UpdateCaptureConfiguration(CaptureConfiguration with
-                            {
-                                FrameRate = x
-                            });
-                        }
-
-                        break;
+                        return;
                     }
+
+                    if (int.TryParse(CaptureFrameRate, out var x))
+                    {
+                        UpdateCaptureConfiguration(CaptureConfiguration with
+                        {
+                            FrameRate = x
+                        });
+                    }
+
+                    break;
+                }
             }
         };
 
@@ -178,6 +167,30 @@ public partial class MainWindowViewModel : ViewModelBase
         _ = ExecuteCheckPermission(delay: true);
         _ = ExecuteConnectAsync();
         _ = LoadSettingsAsync();
+    }
+
+    private void UpdateCaptureConfiguration(CaptureConfiguration configuration, int? applicationDelayMs = null)
+    {
+        var newConfiguration = configuration.GetNormalized(DisplayService.AvailableDisplays);
+        if (newConfiguration == CaptureConfiguration)
+        {
+            return;
+        }
+
+        CaptureConfiguration = newConfiguration;
+
+        DelayOperation(
+            () => Dispatcher.UIThread.Invoke(() =>
+            {
+                CaptureX = CaptureConfiguration.CaptureX.ToString();
+                CaptureY = CaptureConfiguration.CaptureY.ToString();
+                CaptureFrameRate = CaptureConfiguration.FrameRate.ToString();
+            }),
+            100, ref propertyUpdateCancellationTokenSource);
+
+        DelayOperation(
+            () => CaptureService.SetConfiguration(CaptureConfiguration),
+            applicationDelayMs ?? 500, ref cfgUpdateCancellationTokenSource);
     }
 
     private void SetSelectedDisplayInfo(bool? useFallback = null)
@@ -380,7 +393,7 @@ public partial class MainWindowViewModel : ViewModelBase
 
         LastFrameDumpFilename = tmpFilename;
     }
-    
+
     public void ExecuteOpenLastFrameDump()
     {
         if (string.IsNullOrWhiteSpace(LastFrameDumpFilename))
