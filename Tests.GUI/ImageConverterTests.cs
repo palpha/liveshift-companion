@@ -3,7 +3,7 @@ using Core.Image;
 using Shouldly;
 using SkiaSharp;
 
-namespace Tests.App;
+namespace Tests.GUI;
 
 [SuppressMessage("Interoperability", "CA1416:Validate platform compatibility")]
 public class ImageConverterTests

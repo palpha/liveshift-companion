@@ -9,6 +9,7 @@ using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Core.Capturing;
+using Core.Diagnostics;
 using Core.Image;
 using Core.Settings;
 using Core.Usb;
@@ -41,49 +42,46 @@ public partial class MainWindowViewModel : ViewModelBase
     private CancellationTokenSource propertyUpdateCancellationTokenSource = new();
     private CancellationTokenSource cfgUpdateCancellationTokenSource = new();
 
-    private Random Rnd { get; } = new();
-
     private int FrameCount { get; set; }
     private DateTime LastFrameTime { get; set; }
     private byte[]? LastFrameData { get; set; }
 
     private ILogger<MainWindowViewModel> Logger { get; }
+    private IDebugWriter DebugWriter { get; }
     private IDisplayService DisplayService { get; }
     private ICaptureService CaptureService { get; }
+    private IPtnshiftFinder PtnshiftFinder { get; }
+    private IPreviewGenerator PreviewGenerator { get; }
     private ISettingsManager SettingsManager { get; }
-    private IImageConverter ImageConverter { get; }
     private IPush2Usb Push2Usb { get; }
 
     private AppSettings? AppSettings { get; set; }
 
     public MainWindowViewModel(
+        ILogger<MainWindowViewModel> logger,
+        IDebugWriter debugWriter,
         IDisplayService displayService,
         ICaptureService captureService,
+        IPtnshiftFinder ptnshiftFinder,
+        IPreviewGenerator previewGenerator,
         ISettingsManager settingsManager,
-        IImageConverter imageConverter,
-        IPush2Usb push2Usb,
-        ILogger<MainWindowViewModel> logger)
+        IPush2Usb push2Usb)
     {
+        Logger = logger;
+        DebugWriter = debugWriter;
         DisplayService = displayService;
         CaptureService = captureService;
+        PtnshiftFinder = ptnshiftFinder;
+        PreviewGenerator = previewGenerator;
         SettingsManager = settingsManager;
-        ImageConverter = imageConverter;
         Push2Usb = push2Usb;
-        Logger = logger;
 
         CaptureService.FrameCaptured += OnFrameReceived;
-        (CaptureService as CaptureServiceBase).PatternFound += (x, y) =>
-        {
-            CaptureX = x.ToString();
-            CaptureY = y.ToString();
-        };
+        DebugWriter.DebugWritten += WriteDebug;
+        PtnshiftFinder.LocationLost += () => WriteDebug("Lost location");
+        PtnshiftFinder.LocationFound += x => WriteDebug($"Found location: {x}");
 
         LastFrameTime = DateTime.UtcNow;
-
-        // generate a test bitmap and save to a png
-        // var bytes = GenerateTestBitmap();
-        // var testBitmap = ConvertToData(bytes);
-        // SavePngToDisk(testBitmap);
 
         PropertyChanged += (_, e) =>
         {
@@ -222,41 +220,12 @@ public partial class MainWindowViewModel : ViewModelBase
             LastFrameTime = now;
         }
 
-        LastFrameData = frame.ToArray();
-
         if (IsPreviewEnabled)
         {
-            var image = ConvertRawBytesToPng(frame);
+            LastFrameData = frame.ToArray();
+            var image = PreviewGenerator.ConvertRawBytesToPng(frame);
             Dispatcher.UIThread.Invoke(() => ImageSource = image);
         }
-    }
-
-    private Bitmap ConvertRawBytesToPng(ReadOnlySpan<byte> frame)
-    {
-        var data = ConvertToData(frame);
-
-        if (Logger.IsEnabled(LogLevel.Trace) && Rnd.Next(0, 1000) == 0)
-        {
-            SavePngToDisk(data);
-        }
-
-        return Bitmap.DecodeToWidth(data.AsStream(), 960);
-    }
-
-    private SKData ConvertToData(ReadOnlySpan<byte> frame)
-    {
-        var bitmap = ImageConverter.ConvertBgra24BytesToBitmap(frame, SKColorType.Bgra8888);
-        using var skImage = SKImage.FromBitmap(bitmap);
-        return skImage.Encode(SKEncodedImageFormat.Png, 100);
-    }
-
-    private void SavePngToDisk(SKData data)
-    {
-        var tmpDir = Path.GetTempPath();
-        var tmpFilename = Path.Combine(tmpDir, $"frame_{DateTime.Now:yyyyMMdd_HHmmss}.png");
-        using var fs = new FileStream(tmpFilename, FileMode.Create);
-        data.SaveTo(fs);
-        DebugOutput += $"Frame saved: {tmpFilename}\n";
     }
 
     public async Task ExecuteCheckPermission(bool? delay = null)
@@ -308,7 +277,7 @@ public partial class MainWindowViewModel : ViewModelBase
         ref CancellationTokenSource cts)
     {
         cts.Cancel();
-        cts = new CancellationTokenSource();
+        cts = new();
         var token = cts.Token;
         Task.Run(async () =>
         {
@@ -378,6 +347,8 @@ public partial class MainWindowViewModel : ViewModelBase
         }
     }
 
+    private void WriteDebug(string message) => DebugOutput += $"{message}\n";
+
     public void ExecuteInspectLastFrame()
     {
         if (LastFrameData == null)
@@ -404,12 +375,12 @@ public partial class MainWindowViewModel : ViewModelBase
 
         if (LastFrameDumpFilename == "")
         {
-            DebugOutput += $"Frame dump: {tmpFilename}\n";
+            WriteDebug($"Frame dump: {tmpFilename}");
         }
 
         LastFrameDumpFilename = tmpFilename;
     }
-
+    
     public void ExecuteOpenLastFrameDump()
     {
         if (string.IsNullOrWhiteSpace(LastFrameDumpFilename))
@@ -421,70 +392,5 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             Process.Start("open", $"-R \"{LastFrameDumpFilename}\"");
         }
-    }
-
-    public void ExecuteLocatePixels()
-    {
-        Task.Run(()=> (CaptureService as CaptureServiceBase).LocatePatternInFullScreen());
-    }
-
-    public static byte[] GenerateTestBitmap()
-    {
-        const int Width = 960;
-        const int Height = 161;
-        const string Pattern = "abaabbbaaaabbbbb"; // 15 characters
-        var data = new byte[Width * Height * 4];
-
-        // Fill row 0
-        for (var x = 0; x < Width; x++)
-        {
-            // Calculate the starting offset for pixel RGBA
-            var offset = (0 * Width + x) * 4;
-
-            // If x is within our 15-character pattern
-            if (x < Pattern.Length)
-            {
-                var c = Pattern[x];
-                if (c == 'a')
-                {
-                    // #1C1C1C, fully opaque
-                    data[offset + 0] = 0x1C; // R
-                    data[offset + 1] = 0x1C; // G
-                    data[offset + 2] = 0x1C; // B
-                    data[offset + 3] = 0xFF; // A
-                }
-                else // 'b'
-                {
-                    // #2C2C2C, fully opaque
-                    data[offset + 0] = 0x2C;
-                    data[offset + 1] = 0x2C;
-                    data[offset + 2] = 0x2C;
-                    data[offset + 3] = 0xFF;
-                }
-            }
-            else
-            {
-                // Remaining pixels in row 0 => black #000000
-                data[offset + 0] = 0x00; // R
-                data[offset + 1] = 0x00; // G
-                data[offset + 2] = 0x00; // B
-                data[offset + 3] = 0xFF; // A
-            }
-        }
-
-        // Fill rows 1..160 with green #00FF00
-        for (var y = 1; y < Height; y++)
-        {
-            for (var x = 0; x < Width; x++)
-            {
-                var offset = (y * Width + x) * 4;
-                data[offset + 0] = 0x00; // R
-                data[offset + 1] = 0xFF; // G
-                data[offset + 2] = 0x00; // B
-                data[offset + 3] = 0xFF; // A
-            }
-        }
-
-        return data;
     }
 }

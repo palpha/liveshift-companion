@@ -29,6 +29,6 @@ namespace Tests.Benchmark
 
         private byte[] GetBytesFromFile(string fileName) =>
             File.ReadAllBytes(
-                Path.Combine("..", "..", "..", "..", "..", "..", "..", "..", "Tests.App", fileName));
+                Path.Combine("..", "..", "..", "..", "..", "..", "..", "..", "Tests.GUI", fileName));
     }
 }

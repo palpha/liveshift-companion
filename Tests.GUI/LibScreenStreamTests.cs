@@ -4,7 +4,7 @@ using Core.Capturing;
 using Shouldly;
 using Xunit.Abstractions;
 
-namespace Tests.App;
+namespace Tests.GUI;
 
 public class LibScreenStreamTests(ITestOutputHelper testOutputHelper)
 {

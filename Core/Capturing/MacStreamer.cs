@@ -1,7 +1,7 @@
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
-[assembly: InternalsVisibleTo("Tests.App")]
+[assembly: InternalsVisibleTo("Tests.GUI")]
 
 namespace Core.Capturing;
 

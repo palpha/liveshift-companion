@@ -5,7 +5,7 @@ using Moq;
 using Moq.Language.Flow;
 using Shouldly;
 
-namespace Tests.App;
+namespace Tests.GUI;
 
 [SuppressMessage("Interoperability", "CA1416:Validate platform compatibility")]
 [SuppressMessage("ReSharper", "LocalVariableHidesMember")]

@@ -2,7 +2,7 @@
 using Core.Image;
 using Moq;
 
-namespace Tests.App;
+namespace Tests.GUI;
 
 public class WindowsStreamerTests
 {

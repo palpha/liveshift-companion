@@ -1,6 +1,6 @@
 using Core.Capturing;
 
-namespace Tests.App;
+namespace Tests.GUI;
 
 public class EventSourceMock : ICaptureEventSource
 {

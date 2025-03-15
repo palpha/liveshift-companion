@@ -11,6 +11,7 @@ using GUI.ViewModels;
 using GUI.Views;
 using Microsoft.Extensions.DependencyInjection;
 using Core.Capturing;
+using Core.Diagnostics;
 
 namespace GUI;
 
@@ -31,6 +32,8 @@ public partial class App : Application
             var provider =
                 new ServiceCollection()
                     .AddLogging()
+                    .AddSingleton<IDebugWriter, DebugWriter>()
+                    .AddSingleton<IPtnshiftFinder, PtnshiftFinder>()
 #if MACOS
                     .AddSingleton<IStreamer, MacStreamer>()
                     .AddTransient<ICaptureService, MacCaptureService>()
@@ -41,6 +44,8 @@ public partial class App : Application
                     .AddTransient<ICaptureEventSource, DefaultCaptureEventSource>()
                     .AddSingleton<IPush2Usb, Push2Usb>()
                     .AddTransient<IImageConverter, ImageConverter>()
+                    .AddTransient<IPreviewGenerator, PreviewGenerator>()
+                    .AddTransient<IImageSaver, ImageSaver>()
                     .AddTransient<ILibUsbWrapper, DefaultLibUsbWrapper>()
                     .AddTransient<ISettingsManager, SettingsManager>()
                     .AddTransient<IDisplayService, DisplayService>()
